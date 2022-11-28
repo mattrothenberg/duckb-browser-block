@@ -127,6 +127,8 @@ export function DataBrowser({ files }: { files: FileWithContent[] }) {
     setQuery(`select * from ${name}`);
   };
 
+  console.log({ schema });
+
   return (
     <div className={tw`divide-y flex flex-col overflow-hidden h-full`}>
       <div
