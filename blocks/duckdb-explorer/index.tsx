@@ -10,7 +10,7 @@ function BlockInner({
   files,
   blockProps,
 }: {
-  files: any[];
+  files: File[];
   blockProps: FolderBlockProps;
 }) {
   const { isLoading, isError, data } = useFilesContent(
@@ -31,12 +31,25 @@ function BlockInner({
 
 const client = new QueryClient();
 
+const validExtensions = ["csv", "json"];
+
+export type File = {
+  path?: string | undefined;
+  mode?: string | undefined;
+  type?: string | undefined;
+  sha?: string | undefined;
+  size?: number | undefined;
+  url?: string | undefined;
+};
+
 export default function (props: FolderBlockProps) {
-  const justCsvs = props.tree.filter((f) => f?.path?.endsWith(".csv"));
+  const validFiles = props.tree.filter(
+    (f) => validExtensions.indexOf(f?.path?.split(".").pop() || "") > -1
+  );
 
   return (
     <QueryClientProvider client={client}>
-      <BlockInner blockProps={props} files={justCsvs} />
+      <BlockInner blockProps={props} files={validFiles} />
     </QueryClientProvider>
   );
 }

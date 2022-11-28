@@ -1,27 +1,23 @@
 import { FolderBlockProps } from "@githubnext/blocks";
 import { useQuery } from "@tanstack/react-query";
 import { decode } from "js-base64";
-import Papa from "papaparse";
+import { File } from "..";
 
-const asyncParse = (content: string) => {
-  return new Promise((resolve) => {
-    Papa.parse(content, {
-      complete: (results) => {
-        // @ts-ignore
-        resolve(results.data[0].filter(Boolean));
-      },
-    });
-  });
+export type FileWithContent = File & {
+  name: string;
+  extension: string;
+  content: string;
+  columns: string[];
 };
 
-type FilesContent = { name: string; content: string; columns: string[] }[];
+const dropExtension = (filename: string) => filename.replace(/\.[^/.]+$/, "");
 
 export function useFilesContent(
-  files: any[],
+  files: File[],
   context: FolderBlockProps["context"],
   fetcher: FolderBlockProps["onRequestGitHubData"]
 ) {
-  return useQuery<any, unknown, FilesContent>({
+  return useQuery<any, unknown, FileWithContent[]>({
     queryKey: ["files", files.map((file) => file.path)],
     queryFn: async () => {
       const responses = await Promise.all(
@@ -35,15 +31,18 @@ export function useFilesContent(
         .filter((file) => Boolean(file.content))
         .map((file) => {
           return {
-            name: file.name as string,
+            ...file,
+            extension: file.name.split(".").pop(),
+            name: dropExtension(file.name as string),
             content: decode(file.content),
+            columns: [],
           };
         });
 
-      for (const file of content) {
-        // @ts-ignore
-        file["columns"] = await asyncParse(file.content);
-      }
+      // for (const file of content) {
+      //   // @ts-ignore
+      //   file["columns"] = await asyncParse(file.content);
+      // }
 
       return content;
     },

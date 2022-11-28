@@ -12,8 +12,7 @@ import mvp_worker from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?ur
 import duckdb_wasm_next from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url";
 import eh_worker from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
 import { Loader } from "./loader";
-
-const dropExtension = (filename: string) => filename.replace(/\.[^/.]+$/, "");
+import { FileWithContent } from "../hooks";
 
 const MANUAL_BUNDLES = {
   mvp: {
@@ -33,15 +32,9 @@ const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
 const worker = new Worker(bundle.mainWorker);
 const logger = new duckdb.ConsoleLogger();
 
-export function DataBrowser({
-  files,
-}: {
-  files: { content: string; name: string; columns: string[] }[];
-}) {
+export function DataBrowser({ files }: { files: FileWithContent[] }) {
   const [dbStatus, setDbStatus] = useState("idle");
-  const [query, setQuery] = useState(
-    `select * from ${dropExtension(files[0].name)}`
-  );
+  const [query, setQuery] = useState(`select * from ${files[0].name}`);
   const [debouncedQuery] = useDebounce(query, 250);
   const connRef = useRef<any>();
   const dbRef = useRef<any>();
@@ -61,7 +54,7 @@ export function DataBrowser({
     };
   };
 
-  const { isLoading, isError, isSuccess, data, error } = useQuery({
+  const { isError, data, error } = useQuery({
     queryKey: ["query", debouncedQuery],
     queryFn: () => {
       return execQuery(debouncedQuery);
@@ -81,12 +74,23 @@ export function DataBrowser({
         connRef.current = conn;
 
         for (const file of files) {
-          let nameWithoutExtension = dropExtension(file.name);
+          await db.registerFileText(file.name, file.content);
 
-          await db.registerFileText(nameWithoutExtension, file.content);
-          await conn.insertCSVFromPath(nameWithoutExtension, {
-            name: nameWithoutExtension,
-          });
+          switch (file.extension) {
+            case "json":
+              await conn.insertJSONFromPath(file.name, {
+                name: file.name,
+              });
+              break;
+            case "csv":
+              await conn.insertCSVFromPath(file.name, {
+                name: file.name,
+              });
+              break;
+            default:
+              break;
+          }
+
           setDbStatus("ready");
         }
       } catch (e) {
@@ -110,8 +114,7 @@ export function DataBrowser({
 
   const schema = useMemo(() => {
     return files.reduce<Record<string, string[]>>((acc, file) => {
-      let name = dropExtension(file.name);
-      acc[name] = file.columns.map((c) => c.toLowerCase());
+      acc[file.name] = file.columns.map((c) => c.toLowerCase());
       return acc;
     }, {});
   }, [files]);
@@ -121,7 +124,7 @@ export function DataBrowser({
   }
 
   const handleInsert = (name: string) => {
-    setQuery(`select * from ${dropExtension(name)}`);
+    setQuery(`select * from ${name}`);
   };
 
   return (
@@ -133,7 +136,7 @@ export function DataBrowser({
           Loaded tables are:{" "}
           <div className={tw`inline-flex ml-1 space-x-1`}>
             {files.map((f, index) => {
-              const name = dropExtension(f.name);
+              const name = f.name;
               return (
                 <button
                   className={tw`hover:underline`}
